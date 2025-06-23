@@ -25,8 +25,24 @@ jobs:
       - name: Build project
         run: bun run build
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with improvement tracking
+        id: test-improvements
+        run: |
+          # Run tests and check for improvements
+          bun test/test-runner.js --check-improvements
+
+      - name: Display test improvement results
+        run: |
+          echo "=== Test Improvement Analysis ==="
+          echo "Can merge: ${{ steps.test-improvements.outputs.can_merge }}"
+          echo "Reason: ${{ steps.test-improvements.outputs.reason }}"
+          echo ""
+          echo "Test Summary:"
+          echo "- Previously passing: ${{ steps.test-improvements.outputs.previously_passing }}"
+          echo "- Still passing: ${{ steps.test-improvements.outputs.still_passing }}"
+          echo "- Newly passing: ${{ steps.test-improvements.outputs.newly_passing }}"
+          echo "- Newly failing: ${{ steps.test-improvements.outputs.newly_failing }}"
+          echo "- Regressions: ${{ steps.test-improvements.outputs.regressions }}"
 
       - name: Run benchmarks and collect metrics
         id: benchmarks
@@ -134,6 +150,13 @@ jobs:
             echo "📝 No baseline found, skipping regression check"
           fi
 
+      - name: Update test status baseline (on main/master)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          # Update test status baseline with current results
+          bun test/test-runner.js --update-baseline
+          echo "📊 Test status baseline updated"
+
       - name: Update performance baseline (on main/master)
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         run: |
@@ -161,7 +184,7 @@ jobs:
 
           echo "📊 Performance baseline updated"
 
-      - name: Comment on PR with performance results
+      - name: Comment on PR with test and performance results
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
@@ -175,12 +198,23 @@ jobs:
             // Check if we already commented
             const existingComment = comments.find(comment => 
               comment.user.type === 'Bot' && 
-              comment.body.includes('## Performance Test Results')
+              comment.body.includes('## Test & Performance Results')
             );
 
-            let commentBody = `## Performance Test Results
+            let commentBody = `## Test & Performance Results
 
-            ### Current Metrics
+            ### Test Improvement Analysis
+            **Merge Status**: ${context.steps.test-improvements.outputs.can_merge === 'true' ? '✅ **Can Merge**' : '❌ **Cannot Merge**'}
+            **Reason**: ${context.steps.test-improvements.outputs.reason}
+
+            **Test Summary**:
+            - Previously passing: ${context.steps.test-improvements.outputs.previously_passing}
+            - Still passing: ${context.steps.test-improvements.outputs.still_passing}
+            - Newly passing: ${context.steps.test-improvements.outputs.newly_passing}
+            - Newly failing: ${context.steps.test-improvements.outputs.newly_failing}
+            - Regressions: ${context.steps.test-improvements.outputs.regressions}
+
+            ### Performance Metrics
             - **Parse Simple**: ${context.steps.benchmarks.outputs.parse_simple}ms
             - **Parse Complex**: ${context.steps.benchmarks.outputs.parse_complex}ms  
             - **Parse Large**: ${context.steps.benchmarks.outputs.parse_large}ms
@@ -190,7 +224,7 @@ jobs:
             - **GON vs JSON Parse Ratio**: ${context.steps.benchmarks.outputs.gon_vs_json_parse_ratio}x
             - **GON vs JSON Stringify Ratio**: ${context.steps.benchmarks.outputs.gon_vs_json_stringify_ratio}x
 
-            ### Regression Status
+            ### Performance Regression Status
             ${context.steps.regression-check.outputs.regression_detected === 'true' 
               ? `🚨 **Performance regressions detected!**\n\n${context.steps.regression-check.outputs.regression_details}`
               : '✅ **No performance regressions detected**'
@@ -215,8 +249,13 @@ jobs:
               });
             }
 
-      - name: Fail on performance regression
-        if: steps.regression-check.outputs.regression_detected == 'true'
+      - name: Fail on test regression or performance regression
+        if: steps.test-improvements.outputs.can_merge != 'true' || steps.regression-check.outputs.regression_detected == 'true'
         run: |
-          echo "🚨 Performance regression detected! Please investigate and fix before merging."
+          if [ "${{ steps.test-improvements.outputs.can_merge }}" != "true" ]; then
+            echo "🚨 Test improvements criteria not met! Please add more passing tests or fix regressions."
+          fi
+          if [ "${{ steps.regression-check.outputs.regression_detected }}" == "true" ]; then
+            echo "🚨 Performance regression detected! Please investigate and fix before merging."
+          fi
           exit 1
