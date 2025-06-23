@@ -1,0 +1,145 @@
+{
+  "basic_json": {
+    "description": "Basic JSON object",
+    "input": "{\"name\":\"John\",\"age\":30,\"active\":true}",
+    "expected": {
+      "name": "John",
+      "age": 30,
+      "active": true
+    }
+  },
+  "json_with_null": {
+    "description": "JSON with null and false values",
+    "input": "{\"nullValue\":null,\"falseValue\":false,\"emptyArray\":[],\"emptyObject\":{}}",
+    "expected": {
+      "nullValue": null,
+      "falseValue": false,
+      "emptyArray": [],
+      "emptyObject": {}
+    }
+  },
+  "nested_objects": {
+    "description": "Nested objects and arrays",
+    "input": "{\"user\":{\"name\":\"Alice\",\"preferences\":[\"reading\",\"music\",\"travel\"]},\"metadata\":{\"created\":\"2023-01-01\",\"tags\":[\"important\",\"personal\"]}}",
+    "expected": {
+      "user": {
+        "name": "Alice",
+        "preferences": ["reading", "music", "travel"]
+      },
+      "metadata": {
+        "created": "2023-01-01",
+        "tags": ["important", "personal"]
+      }
+    }
+  },
+  "single_date": {
+    "description": "Single date object",
+    "input": "{\"created\":|2023-12-17T12:00:00.000Z|}",
+    "expected_type": "Date",
+    "expected_iso": "2023-12-17T12:00:00.000Z"
+  },
+  "multiple_dates": {
+    "description": "Multiple date objects",
+    "input": "{\"startDate\":|2023-01-01T00:00:00.000Z|,\"endDate\":|2023-12-31T23:59:59.999Z|,\"updated\":|2023-06-15T10:30:00.000Z|}",
+    "expected_dates": [
+      {"key": "startDate", "iso": "2023-01-01T00:00:00.000Z"},
+      {"key": "endDate", "iso": "2023-12-31T23:59:59.999Z"},
+      {"key": "updated", "iso": "2023-06-15T10:30:00.000Z"}
+    ]
+  },
+  "single_bigint": {
+    "description": "Single bigint",
+    "input": "{\"largeNumber\":42n}",
+    "expected": 42,
+    "expected_type": "bigint"
+  },
+  "multiple_bigints": {
+    "description": "Multiple bigints",
+    "input": "{\"small\":1n,\"large\":999999999999999999n,\"zero\":0n}",
+    "expected": {
+      "small": 1,
+      "large": "999999999999999999",
+      "zero": 0
+    }
+  },
+  "single_symbol": {
+    "description": "Single symbol",
+    "input": "{\"debug\":±debug±}",
+    "expected_symbol": "debug",
+    "expected_type": "symbol"
+  },
+  "multiple_symbols": {
+    "description": "Multiple symbols",
+    "input": "{\"debug\":±debug±,\"info\":±info±,\"error\":±error±}",
+    "expected_symbols": ["debug", "info", "error"]
+  },
+  "simple_reference": {
+    "description": "Simple reference to object",
+    "input": "{\"user\":{\"name\":\"Bob\",\"age\":25},\"ref\":@user@}",
+    "expected_ref_target": "user",
+    "expected_ref_properties": {
+      "name": "Bob",
+      "age": 25
+    }
+  },
+  "circular_reference": {
+    "description": "Circular reference between objects",
+    "input": "{\"parent\":{\"name\":\"Parent\",\"child\":@child@},\"child\":{\"name\":\"Child\",\"parent\":@parent@}}",
+    "expected_circular": {
+      "parent_refs_child": true,
+      "child_refs_parent": true
+    }
+  },
+  "multiple_references": {
+    "description": "Multiple references to same object",
+    "input": "{\"shared\":{\"id\":\"shared-123\",\"data\":\"important\"},\"ref1\":@shared@,\"ref2\":@shared@,\"ref3\":@shared@}",
+    "expected_shared_refs": ["ref1", "ref2", "ref3"]
+  },
+  "complex_mixed": {
+    "description": "Complex object with all GON features",
+    "input": "{\"metadata\":{\"created\":|2023-01-01T00:00:00.000Z|,\"version\":1.0,\"flags\":[±debug±,±info±]},\"data\":{\"users\":[{\"id\":1n,\"name\":\"Alice\",\"active\":true},{\"id\":2n,\"name\":\"Bob\",\"active\":false}],\"settings\":@settings@},\"settings\":{\"theme\":\"dark\",\"notifications\":true,\"lastModified\":|2023-12-17T12:00:00.000Z|},\"cache\":{\"user1\":@data.users.0@,\"user2\":@data.users.1@,\"config\":@settings@}}",
+    "features": ["dates", "bigints", "symbols", "references", "nested_objects", "arrays"]
+  },
+  "mixed_array": {
+    "description": "Array with mixed types and references",
+    "input": "[\"string\",42,true,null,|2023-12-17T12:00:00.000Z|,123n,±test±,{\"name\":\"object\"},@3@,@6@,@7@]",
+    "expected_types": ["string", "number", "boolean", "null", "Date", "bigint", "symbol", "object", "reference", "reference", "reference"]
+  },
+  "edge_cases": {
+    "empty_strings": {
+      "description": "Empty strings and whitespace",
+      "input": "{\"empty\":\"\",\"spaces\":\"   \",\"tabs\":\"\\t\\t\\t\"}"
+    },
+    "special_chars": {
+      "description": "Special characters in strings",
+      "input": "{\"special\":\"\\\"quotes\\\" and \\n newlines and \\t tabs\"}"
+    },
+    "nested_refs": {
+      "description": "Nested references",
+      "input": "{\"level1\":{\"level2\":{\"level3\":{\"value\":\"deep\"}}},\"ref1\":@level1@,\"ref2\":@level1.level2@,\"ref3\":@level1.level2.level3@}"
+    }
+  },
+  "round_trip_examples": {
+    "with_references": {
+      "description": "Object with circular references for round-trip testing",
+      "original_structure": {
+        "user": {"name": "Alice", "age": 30},
+        "ref": "reference_to_user"
+      }
+    },
+    "all_types": {
+      "description": "Object with all GON types for round-trip testing",
+      "original_structure": {
+        "string": "test",
+        "number": 42,
+        "boolean": true,
+        "null": null,
+        "date": "Date object",
+        "bigint": "BigInt(123)",
+        "symbol": "Symbol.for('test')",
+        "array": [1, 2, 3],
+        "object": {"nested": true}
+      }
+    }
+  }
+} 

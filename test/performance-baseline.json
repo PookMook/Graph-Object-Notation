@@ -1,0 +1,18 @@
+{
+  "timestamp": "2024-01-01T00:00:00Z",
+  "commit": "initial-baseline",
+  "parse": {
+    "simple": 0.0072,
+    "complex": 0.0197,
+    "large": 0.3319
+  },
+  "stringify": {
+    "simple": 0.0039,
+    "complex": 0.0094,
+    "large": 0.1734
+  },
+  "comparison": {
+    "parse_ratio": 10.17,
+    "stringify_ratio": 11.87
+  }
+} 

@@ -1,0 +1,91 @@
+{
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "commit": "initial",
+  "test_status": {
+    "parse.test.js": {
+      "total": 10,
+      "passing": 10,
+      "failing": 0,
+      "tests": {
+        "Parsing strings": "passed",
+        "Parsing date": "passed",
+        "Parsing int": "passed",
+        "Parsing bigInt": "passed",
+        "Parsing symbol": "passed",
+        "Parsing null": "passed",
+        "Parsing array": "passed",
+        "Parsing object": "passed",
+        "Parsing reference": "passed"
+      }
+    },
+    "stringify.test.js": {
+      "total": 2,
+      "passing": 2,
+      "failing": 0,
+      "tests": {
+        "stringify object": "passed",
+        "Immutable object stringify": "passed"
+      }
+    },
+    "golden-strings.test.js": {
+      "total": 20,
+      "passing": 20,
+      "failing": 0,
+      "tests": {
+        "Simple JSON object": "passed",
+        "JSON with null and false": "passed",
+        "Nested objects and arrays": "passed",
+        "Single date": "passed",
+        "Multiple dates": "passed",
+        "Single bigint": "passed",
+        "Multiple bigints": "passed",
+        "Single symbol": "passed",
+        "Multiple symbols": "passed",
+        "Simple reference": "passed",
+        "Circular reference": "passed",
+        "Multiple references to same object": "passed",
+        "Complex object with all GON features": "passed"
+      }
+    },
+    "performance.test.js": {
+      "total": 5,
+      "passing": 5,
+      "failing": 0,
+      "tests": {
+        "Performance benchmarks": "passed",
+        "Memory usage": "passed",
+        "Large data handling": "passed",
+        "Edge cases": "passed",
+        "Stress tests": "passed"
+      }
+    },
+    "improvements.test.js": {
+      "total": 18,
+      "passing": 0,
+      "failing": 18,
+      "tests": {
+        "Parse ISO date with timezone": "failed",
+        "Parse date with milliseconds": "failed",
+        "Parse relative dates": "failed",
+        "Deep object references": "failed",
+        "Array element references": "failed",
+        "Cross-file references": "failed",
+        "Parse Map objects": "failed",
+        "Parse Set objects": "failed",
+        "Parse RegExp objects": "failed",
+        "Graceful handling of malformed dates": "failed",
+        "Graceful handling of invalid references": "failed",
+        "Graceful handling of circular references in stringify": "failed",
+        "Large array parsing performance": "failed",
+        "Deep object parsing performance": "failed",
+        "Empty string parsing": "failed",
+        "Whitespace handling": "failed",
+        "Unicode character handling": "failed"
+      }
+    }
+  },
+  "improvement_threshold": {
+    "new_passing_ratio": 2.0,
+    "max_regression_ratio": 0.1
+  }
+} 
