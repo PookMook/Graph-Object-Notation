@@ -1,4 +1,4 @@
-const GON = require('../lib/index')
+import GON from '../src/index.js'
 
 const string = `{
   "string":"hello world",
