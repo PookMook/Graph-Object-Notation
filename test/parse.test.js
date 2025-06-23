@@ -1,4 +1,4 @@
-import GON from '../src/index.js'
+import GON from '../lib/index.js'
 
 const string = `{
   "string":"hello world",

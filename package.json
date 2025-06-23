@@ -2,10 +2,13 @@
   "name": "graph-object-notation",
   "version": "0.1.6",
   "description": "Graph parser/serializer superset of JSON",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
     "test": "bun test",
+    "benchmark": "bun test/benchmark.js",
+    "perf": "bun test/performance-monitor.js",
     "build": "tsc",
     "prepublish": "tsc"
   },

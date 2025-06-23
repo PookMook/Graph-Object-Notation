@@ -1,0 +1,222 @@
+name: CI & Performance Tests
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build project
+        run: bun run build
+
+      - name: Run tests
+        run: bun test
+
+      - name: Run benchmarks and collect metrics
+        id: benchmarks
+        run: |
+          # Run CI-specific benchmarks
+          bun test/benchmark-ci.js > benchmark-results.txt 2>&1
+
+          # Extract metrics from shell-parseable output
+          PARSE_SIMPLE=$(grep 'parse_simple:' benchmark-results.txt | cut -d' ' -f2)
+          PARSE_COMPLEX=$(grep 'parse_complex:' benchmark-results.txt | cut -d' ' -f2)
+          PARSE_LARGE=$(grep 'parse_large:' benchmark-results.txt | cut -d' ' -f2)
+          STRINGIFY_SIMPLE=$(grep 'stringify_simple:' benchmark-results.txt | cut -d' ' -f2)
+          STRINGIFY_COMPLEX=$(grep 'stringify_complex:' benchmark-results.txt | cut -d' ' -f2)
+          STRINGIFY_LARGE=$(grep 'stringify_large:' benchmark-results.txt | cut -d' ' -f2)
+          JSON_PARSE_RATIO=$(grep 'gon_vs_json_parse_ratio:' benchmark-results.txt | cut -d' ' -f2)
+          JSON_STRINGIFY_RATIO=$(grep 'gon_vs_json_stringify_ratio:' benchmark-results.txt | cut -d' ' -f2)
+
+          # Set outputs
+          echo "parse_simple=$PARSE_SIMPLE" >> $GITHUB_OUTPUT
+          echo "parse_complex=$PARSE_COMPLEX" >> $GITHUB_OUTPUT
+          echo "parse_large=$PARSE_LARGE" >> $GITHUB_OUTPUT
+          echo "stringify_simple=$STRINGIFY_SIMPLE" >> $GITHUB_OUTPUT
+          echo "stringify_complex=$STRINGIFY_COMPLEX" >> $GITHUB_OUTPUT
+          echo "stringify_large=$STRINGIFY_LARGE" >> $GITHUB_OUTPUT
+          echo "gon_vs_json_parse_ratio=$JSON_PARSE_RATIO" >> $GITHUB_OUTPUT
+          echo "gon_vs_json_stringify_ratio=$JSON_STRINGIFY_RATIO" >> $GITHUB_OUTPUT
+
+          # Show results
+          cat benchmark-results.txt
+
+      - name: Load performance baseline
+        id: baseline
+        run: |
+          if [ -f "test/performance-baseline.json" ]; then
+            echo "baseline_exists=true" >> $GITHUB_OUTPUT
+            cat test/performance-baseline.json
+          else
+            echo "baseline_exists=false" >> $GITHUB_OUTPUT
+            echo "No baseline found, will create one"
+          fi
+
+      - name: Check for performance regressions
+        id: regression-check
+        run: |
+          if [ "${{ steps.baseline.outputs.baseline_exists }}" == "true" ]; then
+            # Load baseline values
+            PARSE_SIMPLE_BASELINE=$(jq -r '.parse.simple' test/performance-baseline.json)
+            PARSE_COMPLEX_BASELINE=$(jq -r '.parse.complex' test/performance-baseline.json)
+            PARSE_LARGE_BASELINE=$(jq -r '.parse.large' test/performance-baseline.json)
+            STRINGIFY_SIMPLE_BASELINE=$(jq -r '.stringify.simple' test/performance-baseline.json)
+            STRINGIFY_COMPLEX_BASELINE=$(jq -r '.stringify.complex' test/performance-baseline.json)
+            STRINGIFY_LARGE_BASELINE=$(jq -r '.stringify.large' test/performance-baseline.json)
+            JSON_PARSE_RATIO_BASELINE=$(jq -r '.comparison.parse_ratio' test/performance-baseline.json)
+            JSON_STRINGIFY_RATIO_BASELINE=$(jq -r '.comparison.stringify_ratio' test/performance-baseline.json)
+            
+            # Current values
+            PARSE_SIMPLE_CURRENT="${{ steps.benchmarks.outputs.parse_simple }}"
+            PARSE_COMPLEX_CURRENT="${{ steps.benchmarks.outputs.parse_complex }}"
+            PARSE_LARGE_CURRENT="${{ steps.benchmarks.outputs.parse_large }}"
+            STRINGIFY_SIMPLE_CURRENT="${{ steps.benchmarks.outputs.stringify_simple }}"
+            STRINGIFY_COMPLEX_CURRENT="${{ steps.benchmarks.outputs.stringify_complex }}"
+            STRINGIFY_LARGE_CURRENT="${{ steps.benchmarks.outputs.stringify_large }}"
+            JSON_PARSE_RATIO_CURRENT="${{ steps.benchmarks.outputs.gon_vs_json_parse_ratio }}"
+            JSON_STRINGIFY_RATIO_CURRENT="${{ steps.benchmarks.outputs.gon_vs_json_stringify_ratio }}"
+            
+            # Check for regressions (20% threshold)
+            REGRESSIONS=""
+            REGRESSION_FOUND=false
+            
+            # Helper function to check regression
+            check_regression() {
+              local current=$1
+              local baseline=$2
+              local name=$3
+              local threshold=1.2
+              
+              if (( $(echo "$current > $baseline * $threshold" | bc -l) )); then
+                REGRESSIONS="$REGRESSIONS\n❌ $name: $current ms (baseline: $baseline ms)"
+                REGRESSION_FOUND=true
+              fi
+            }
+            
+            # Check each metric
+            check_regression "$PARSE_SIMPLE_CURRENT" "$PARSE_SIMPLE_BASELINE" "Parse Simple"
+            check_regression "$PARSE_COMPLEX_CURRENT" "$PARSE_COMPLEX_BASELINE" "Parse Complex"
+            check_regression "$PARSE_LARGE_CURRENT" "$PARSE_LARGE_BASELINE" "Parse Large"
+            check_regression "$STRINGIFY_SIMPLE_CURRENT" "$STRINGIFY_SIMPLE_BASELINE" "Stringify Simple"
+            check_regression "$STRINGIFY_COMPLEX_CURRENT" "$STRINGIFY_COMPLEX_BASELINE" "Stringify Complex"
+            check_regression "$STRINGIFY_LARGE_CURRENT" "$STRINGIFY_LARGE_BASELINE" "Stringify Large"
+            check_regression "$JSON_PARSE_RATIO_CURRENT" "$JSON_PARSE_RATIO_BASELINE" "JSON Parse Ratio"
+            check_regression "$JSON_STRINGIFY_RATIO_CURRENT" "$JSON_STRINGIFY_RATIO_BASELINE" "JSON Stringify Ratio"
+            
+            if [ "$REGRESSION_FOUND" == "true" ]; then
+              echo "regression_detected=true" >> $GITHUB_OUTPUT
+              echo -e "🚨 Performance regressions detected:$REGRESSIONS"
+              echo "regression_details<<EOF" >> $GITHUB_OUTPUT
+              echo -e "$REGRESSIONS" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "regression_detected=false" >> $GITHUB_OUTPUT
+              echo "✅ No performance regressions detected"
+            fi
+          else
+            echo "regression_detected=false" >> $GITHUB_OUTPUT
+            echo "📝 No baseline found, skipping regression check"
+          fi
+
+      - name: Update performance baseline (on main/master)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          # Create new baseline with current metrics
+          cat > test/performance-baseline.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "parse": {
+              "simple": ${{ steps.benchmarks.outputs.parse_simple }},
+              "complex": ${{ steps.benchmarks.outputs.parse_complex }},
+              "large": ${{ steps.benchmarks.outputs.parse_large }}
+            },
+            "stringify": {
+              "simple": ${{ steps.benchmarks.outputs.stringify_simple }},
+              "complex": ${{ steps.benchmarks.outputs.stringify_complex }},
+              "large": ${{ steps.benchmarks.outputs.stringify_large }}
+            },
+            "comparison": {
+              "parse_ratio": ${{ steps.benchmarks.outputs.gon_vs_json_parse_ratio }},
+              "stringify_ratio": ${{ steps.benchmarks.outputs.gon_vs_json_stringify_ratio }}
+            }
+          }
+          EOF
+
+          echo "📊 Performance baseline updated"
+
+      - name: Comment on PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            // Check if we already commented
+            const existingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('## Performance Test Results')
+            );
+
+            let commentBody = `## Performance Test Results
+
+            ### Current Metrics
+            - **Parse Simple**: ${context.steps.benchmarks.outputs.parse_simple}ms
+            - **Parse Complex**: ${context.steps.benchmarks.outputs.parse_complex}ms  
+            - **Parse Large**: ${context.steps.benchmarks.outputs.parse_large}ms
+            - **Stringify Simple**: ${context.steps.benchmarks.outputs.stringify_simple}ms
+            - **Stringify Complex**: ${context.steps.benchmarks.outputs.stringify_complex}ms
+            - **Stringify Large**: ${context.steps.benchmarks.outputs.stringify_large}ms
+            - **GON vs JSON Parse Ratio**: ${context.steps.benchmarks.outputs.gon_vs_json_parse_ratio}x
+            - **GON vs JSON Stringify Ratio**: ${context.steps.benchmarks.outputs.gon_vs_json_stringify_ratio}x
+
+            ### Regression Status
+            ${context.steps.regression-check.outputs.regression_detected === 'true' 
+              ? `🚨 **Performance regressions detected!**\n\n${context.steps.regression-check.outputs.regression_details}`
+              : '✅ **No performance regressions detected**'
+            }
+
+            ---
+            *Generated by GitHub Actions*`;
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Fail on performance regression
+        if: steps.regression-check.outputs.regression_detected == 'true'
+        run: |
+          echo "🚨 Performance regression detected! Please investigate and fix before merging."
+          exit 1
